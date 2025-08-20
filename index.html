@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Knight's Tour Visualizer</title>
+  <style>
+    :root {
+      --bg: #0f1220;
+      --panel: #171a2b;
+      --accent: #6ee7ff;
+      --accent-2: #a78bfa;
+      --grid: #232741;
+      --text: #e8eaf6;
+      --muted: #9aa3b2;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 24px; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 600px at 70% -10%, #1c2040 0%, var(--bg) 45%);
+      color: var(--text);
+    }
+    h1 { margin: 0 0 12px; font-weight: 800; letter-spacing: 0.3px; }
+    .app { max-width: 1100px; margin: 0 auto; }
+    .toolbar {
+      display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 12px 0 20px;
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 16px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+    .grid-wrap { display: grid; grid-template-columns: 1fr 300px; gap: 16px; }
+    @media (max-width: 900px){ .grid-wrap{ grid-template-columns: 1fr; } }
+
+    .board { display: grid; gap: 2px; background: var(--grid); padding: 2px; border-radius: 14px; }
+    .cell {
+      width: 60px; height: 60px; display: grid; place-items: center;
+      background: #14172b; color: var(--text); font-weight: 700; border-radius: 10px;
+      position: relative; transition: transform 120ms ease, background 200ms ease;
+    }
+    .cell[data-visited="true"] { background: #111827; }
+    .cell .num { font-size: 14px; color: var(--muted); position: absolute; bottom: 6px; right: 8px; font-weight: 600; }
+    .cell.selected { outline: 2px solid var(--accent); box-shadow: 0 0 0 4px rgba(110,231,255,0.12) inset; transform: scale(1.02); }
+    .cell.backtrack { animation: flash 550ms ease; }
+    @keyframes flash { 0%{ background:#2b1320; } 100%{ background:#14172b; } }
+
+    .panel { display: grid; gap: 12px; }
+    .panel .kv { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+    .btn {
+      background: linear-gradient(180deg, #334155, #1f2937);
+      color: #e5e7eb; border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 999px; padding: 10px 16px; font-weight: 700; cursor: pointer;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.25);
+    }
+    .btn:hover { filter: brightness(1.08); }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn.ghost { background: transparent; border-color: rgba(255,255,255,0.15); }
+
+    input[type="number"], select {
+      background: #0b0e1e; color: var(--text); border: 1px solid rgba(255,255,255,0.08);
+      padding: 8px 10px; border-radius: 10px; width: 90px; font-weight: 700;
+    }
+    .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .dot { width: 14px; height: 14px; border-radius: 4px; background: #14172b; border: 2px solid var(--grid); }
+    .dot.sel { outline: 2px solid var(--accent); }
+    .dot.bt { background: #2b1320; }
+
+    .log { height: 300px; overflow: auto; background: #0b0e1e; border-radius: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.06); }
+    .log-line { font-size: 13px; color: #cbd5e1; margin: 0; padding: 2px 0; }
+    .log-line.bad { color: #fecaca; }
+    .log-line.warn { color: #fde68a; }
+    .log-line.ok { color: #bbf7d0; }
+
+    .pill { display: inline-flex; gap: 6px; align-items: center; padding: 6px 10px; border-radius: 999px; background: #0b0e1e; border:1px solid rgba(255,255,255,0.06); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>♞ Knight's Tour – Backtracking Visualizer</h1>
+    <div class="toolbar">
+      <label>Board size N×N: <input id="nInput" type="number" min="1" max="8" value="3"></label>
+      <label>Delay (ms): <input id="delayInput" type="number" min="0" value="350"></label>
+      <button id="startBtn" class="btn">Start</button>
+      <button id="resetBtn" class="btn ghost">Reset</button>
+      <span class="pill">Start at <strong class="mono" id="startXY">(0,0)</strong></span>
+      <span class="pill">Knight <span id="knight" aria-label="knight" title="Knight">♞</span> <span class="mono" id="posXY">(–,–)</span></span>
+    </div>
+
+    <div class="legend">
+      <span><span class="dot"></span> Unvisited</span>
+      <span><span class="dot sel"></span> Exploring</span>
+      <span><span class="dot bt"></span> Backtracked</span>
+    </div>
+
+    <div class="grid-wrap">
+      <div id="board" class="board card"></div>
+      <div class="panel">
+        <div class="card">
+          <div class="kv"><div>Visited cells</div><div class="mono" id="visitedCount">0</div></div>
+          <div class="kv"><div>Goal</div><div class="mono" id="goalCount">0</div></div>
+          <div class="kv"><div>Status</div><div class="mono" id="status">Idle</div></div>
+        </div>
+        <div class="card">
+          <strong>Console</strong>
+          <div id="log" class="log mono" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- UI helpers ---
+    const $ = (q)=>document.querySelector(q);
+    const boardEl = $('#board');
+    const logEl = $('#log');
+    const posXYEl = $('#posXY');
+    const startXYEl = $('#startXY');
+    const visitedCountEl = $('#visitedCount');
+    const goalCountEl = $('#goalCount');
+    const statusEl = $('#status');
+    const nInput = $('#nInput');
+    const delayInput = $('#delayInput');
+    const startBtn = $('#startBtn');
+    const resetBtn = $('#resetBtn');
+
+    const X = [2, 1, -1, -2, -2, -1, 1, 2];
+    const Y = [1, 2, 2, 1, -1, -2, -2, -1];
+
+    let N = 3;
+    let DELAY = 350;
+    let board = [];
+    let cells = [];
+    let running = false;
+
+    function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+    function log(msg, level){
+      const p = document.createElement('p');
+      p.className = 'log-line' + (level ? ' ' + level : '');
+      p.textContent = msg;
+      logEl.appendChild(p);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function buildBoard(){
+      board = Array.from({length: N}, ()=>Array.from({length: N}, ()=>-1));
+      boardEl.style.gridTemplateColumns = `repeat(${N}, 1fr)`;
+      boardEl.innerHTML = '';
+      cells = [];
+      for(let i=0;i<N;i++){
+        const row = [];
+        for(let j=0;j<N;j++){
+          const c = document.createElement('div');
+          c.className = 'cell';
+          c.dataset.visited = 'false';
+          const num = document.createElement('div');
+          num.className = 'num';
+          num.textContent = '';
+          c.appendChild(num);
+          boardEl.appendChild(c);
+          row.push(c);
+        }
+        cells.push(row);
+      }
+      goalCountEl.textContent = String(N*N);
+      visitedCountEl.textContent = '0';
+      statusEl.textContent = 'Idle';
+      posXYEl.textContent = '(–,–)';
+      logEl.innerHTML = '';
+    }
+
+    function setCell(i,j,val){
+      board[i][j] = val;
+      const c = cells[i][j];
+      c.querySelector('.num').textContent = (val >= 0 ? val : '');
+      c.dataset.visited = (val >= 0 ? 'true' : 'false');
+      visitedCountEl.textContent = String(countVisited());
+    }
+
+    function selectCell(i,j){ cells[i][j].classList.add('selected'); }
+    function deselectCell(i,j){ cells[i][j].classList.remove('selected'); }
+    function backtrackFlash(i,j){
+      const c = cells[i][j];
+      c.classList.add('backtrack');
+      setTimeout(()=>c.classList.remove('backtrack'), 560);
+    }
+
+    function countVisited(){
+      let k=0; for(let i=0;i<N;i++) for(let j=0;j<N;j++) if(board[i][j]!==-1) k++; return k;
+    }
+
+    function inBounds(x,y){ return x>=0 && x<N && y>=0 && y<N; }
+
+    async function knightTour(x,y,moveNum){
+      if(!running) return false;
+      if (moveNum === N*N) return true;
+
+      for(let i=0;i<8;i++){
+        const nextX = x + X[i];
+        const nextY = y + Y[i];
+
+        posXYEl.textContent = `(${nextX},${nextY})`;
+        await sleep(DELAY);
+
+        if(inBounds(nextX,nextY) && board[nextX][nextY] === -1){
+          setCell(nextX,nextY,moveNum);
+          selectCell(nextX,nextY);
+          log(`Move to ${nextX},${nextY}`);
+          await sleep(DELAY);
+
+          const ok = await knightTour(nextX,nextY,moveNum+1);
+          if(ok) return true;
+
+          // backtrack
+          log(`No place to move from ${nextX},${nextY}: Backtrack`, 'warn');
+          deselectCell(nextX,nextY);
+          setCell(nextX,nextY,-1);
+          backtrackFlash(nextX,nextY);
+          await sleep(DELAY);
+        } else {
+          log(`${nextX},${nextY} is not a valid move`, 'bad');
+          await sleep(40);
+        }
+      }
+      return false;
+    }
+
+    async function start(){
+      if(running) return; running = true;
+      startBtn.disabled = true; nInput.disabled = true; delayInput.disabled = true; resetBtn.disabled = true;
+      statusEl.textContent = 'Running…';
+      // start from (0,0)
+      setCell(0,0,0);
+      selectCell(0,0);
+      posXYEl.textContent = '(0,0)';
+      const found = await knightTour(0,0,1);
+      statusEl.textContent = found ? 'Solution found' : 'Solution does not exist';
+      log(found ? 'Solution found' : 'Solution does not exist', found ? 'ok' : 'bad');
+      startBtn.disabled = false; nInput.disabled = false; delayInput.disabled = false; resetBtn.disabled = false;
+      running = false;
+    }
+
+    function reset(){
+      if(running) return; buildBoard();
+    }
+
+    // Wire up
+    nInput.addEventListener('change', ()=>{
+      N = Math.max(1, Math.min(8, Number(nInput.value)||3));
+      nInput.value = String(N);
+      startXYEl.textContent = '(0,0)';
+      buildBoard();
+    });
+    delayInput.addEventListener('change', ()=>{
+      DELAY = Math.max(0, Number(delayInput.value)||0);
+      delayInput.value = String(DELAY);
+    });
+    startBtn.addEventListener('click', start);
+    resetBtn.addEventListener('click', reset);
+
+    // init
+    (function init(){
+      N = Number(nInput.value)||3; DELAY = Number(delayInput.value)||350; buildBoard();
+    })();
+  </script>
+</body>
+</html>
